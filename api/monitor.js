@@ -1,4 +1,4 @@
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 // Configuration
 const DASHBOARD_URL = "https://pay.onestopfashionhub.in/ssadmin/dashboard";
@@ -12,9 +12,21 @@ const PASSWORD = process.env.PASSWORD;
 
 // Main handler function
 export default async function handler(req, res) {
+    // DEBUG: Check environment variables
+    console.log('🔍 ENV DEBUG:');
+    console.log('BOT_TOKEN:', TELEGRAM_BOT_TOKEN ? 'SET (' + TELEGRAM_BOT_TOKEN.substring(0, 10) + '...)' : 'MISSING');
+    console.log('CHAT_ID:', TELEGRAM_CHAT_ID || 'MISSING');
+    console.log('USERNAME:', USERNAME || 'MISSING');
+    console.log('PASSWORD:', PASSWORD ? 'SET' : 'MISSING');
+    
     console.log('🚀 Dashboard Monitor Started');
     
     try {
+        // Check if environment variables are set
+        if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID || !USERNAME || !PASSWORD) {
+            throw new Error('Missing environment variables');
+        }
+        
         // Get current IST time
         const now = new Date();
         const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
@@ -52,7 +64,9 @@ export default async function handler(req, res) {
         
         try {
             const errorMessage = `❌ *Vercel Monitor Error*\n🕒 ${new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}\n⚠️ ${error.message}`;
-            await sendToTelegram(errorMessage);
+            if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+                await sendToTelegram(errorMessage);
+            }
         } catch (telegramError) {
             console.error('Failed to send error to Telegram:', telegramError.message);
         }
