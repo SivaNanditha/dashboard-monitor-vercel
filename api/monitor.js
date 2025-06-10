@@ -1,4 +1,4 @@
-// Enhanced Dashboard Monitor with all Java functionalityyy
+// Enhanced Dashboard Monitor with Fixed Cookie Management
 import fetch from 'node-fetch';
 
 // Configuration
@@ -11,7 +11,7 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002643858824';
 const USERNAME = process.env.USERNAME || 'Admin';
 const PASSWORD = process.env.PASSWORD || 'Admin@onestop';
 
-// Timeout settings - OPTIMIZED FOR SPEED
+// Timeout settings
 const CONNECTION_TIMEOUT_MS = 15000;
 const API_TIMEOUT_MS = 10000;
 
@@ -100,7 +100,7 @@ export default async function handler(req, res) {
     }
 }
 
-// Enhanced login function with better error handling
+// FIXED: Enhanced login function with proper cookie extraction
 async function loginToDashboard(cookieJar) {
     console.log('🔐 Logging in to dashboard');
     
@@ -115,8 +115,7 @@ async function loginToDashboard(cookieJar) {
             'Content-Type': 'application/x-www-form-urlencoded',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         },
-        body: formData.toString(),
-        timeout: CONNECTION_TIMEOUT_MS
+        body: formData.toString()
     });
 
     console.log('🔐 Login response status code:', response.status);
@@ -125,24 +124,34 @@ async function loginToDashboard(cookieJar) {
         throw new Error(`Login failed with status code: ${response.status}`);
     }
 
-    // Extract cookies
-    const setCookieHeader = response.headers.get('set-cookie');
-    if (setCookieHeader) {
-        const cookies = setCookieHeader.split(',');
-        cookies.forEach(cookie => {
+    // FIXED: Proper cookie extraction for node-fetch
+    const setCookieHeaders = response.headers.raw()['set-cookie'];
+    console.log('🍪 Raw cookies received:', setCookieHeaders?.length || 0);
+    
+    if (setCookieHeaders) {
+        setCookieHeaders.forEach(cookie => {
             const [nameValue] = cookie.split(';');
             const [name, value] = nameValue.split('=');
             if (name && value) {
                 cookieJar.set(name.trim(), value.trim());
+                console.log('🍪 Stored cookie:', name.trim());
             }
         });
     }
+    
+    console.log('🍪 Total cookies stored:', cookieJar.size);
+    
+    if (cookieJar.size === 0) {
+        console.log('⚠️ Warning: No cookies received from login');
+    }
 }
 
-// Enhanced payin function with detailed debugging
+// FIXED: Enhanced payin function with proper cookie handling
 async function getPayinAmount(cookieJar) {
     console.log('📊 Fetching payin amount');
     const cookieString = Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+    console.log('🍪 Using cookies length:', cookieString.length);
+    console.log('🍪 Cookie preview:', cookieString.substring(0, 100) + '...');
     
     const response = await fetch('https://pay.onestopfashionhub.in/ssadmin/remote/getDashboardPayinSummary', {
         method: 'POST',
@@ -150,16 +159,22 @@ async function getPayinAmount(cookieJar) {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-Requested-With': 'XMLHttpRequest',
             'Referer': DASHBOARD_URL,
-            'Cookie': cookieString
+            'Cookie': cookieString,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         },
-        body: '',
-        timeout: API_TIMEOUT_MS
+        body: ''
     });
 
     console.log('📊 Payin API Status:', response.status);
     const text = await response.text();
     console.log('📊 Payin Response Length:', text.length);
-    console.log('📊 Payin Response Preview:', text.substring(0, 500));
+    console.log('📊 Payin Response:', text);
+
+    // Check for invalid access
+    if (text.includes('Invalid Access')) {
+        console.log('❌ Invalid Access - Session expired or cookies not working');
+        return 'N/A';
+    }
 
     // Multiple regex patterns to try
     const patterns = [
@@ -167,27 +182,36 @@ async function getPayinAmount(cookieJar) {
         /₹\s*[\d,]+\.\d{2}/,            // ₹1,234.56
         /[\d,]+\.\d{2}/,                // 1,234.56
         /"amount":\s*"?([\d,]+\.?\d*)"?/, // JSON format
-        /"value":\s*"?([\d,]+\.?\d*)"?/   // Alternative JSON
+        /"value":\s*"?([\d,]+\.?\d*)"?/,  // Alternative JSON
+        />\s*([\d,]+\.\d{2})\s*</,      // HTML wrapped numbers
+        /Total[:\s]*(Rs\s*)?[\d,]+\.\d{2}/i // Total: Rs 1,234.56
     ];
 
     for (const pattern of patterns) {
         const match = text.match(pattern);
         if (match) {
-            const amount = match[0].includes('Rs') || match[0].includes('₹') ? match[0] : `Rs ${match[0]}`;
+            let amount = match[0];
+            if (!amount.includes('Rs') && !amount.includes('₹')) {
+                // Extract just the number if it's wrapped in HTML or other format
+                const numberMatch = amount.match(/[\d,]+\.\d{2}/);
+                if (numberMatch) {
+                    amount = `Rs ${numberMatch[0]}`;
+                }
+            }
             console.log('💰 Extracted payin amount:', amount);
             return amount;
         }
     }
 
     console.log('❌ Could not extract payin amount from response');
-    console.log('📄 Full response for debugging:', text);
     return 'N/A';
 }
 
-// Enhanced payout function with detailed debugging
+// FIXED: Enhanced payout function with proper cookie handling
 async function getPayoutAmount(cookieJar) {
     console.log('📊 Fetching payout amount');
     const cookieString = Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+    console.log('🍪 Using cookies length:', cookieString.length);
     
     const response = await fetch('https://pay.onestopfashionhub.in/ssadmin/remote/getDashboardPayoutSummary', {
         method: 'POST',
@@ -195,16 +219,22 @@ async function getPayoutAmount(cookieJar) {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-Requested-With': 'XMLHttpRequest',
             'Referer': DASHBOARD_URL,
-            'Cookie': cookieString
+            'Cookie': cookieString,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         },
-        body: '',
-        timeout: API_TIMEOUT_MS
+        body: ''
     });
 
     console.log('📊 Payout API Status:', response.status);
     const text = await response.text();
     console.log('📊 Payout Response Length:', text.length);
-    console.log('📊 Payout Response Preview:', text.substring(0, 500));
+    console.log('📊 Payout Response:', text);
+
+    // Check for invalid access
+    if (text.includes('Invalid Access')) {
+        console.log('❌ Invalid Access - Session expired or cookies not working');
+        return 'N/A';
+    }
 
     // Multiple regex patterns to try
     const patterns = [
@@ -212,24 +242,32 @@ async function getPayoutAmount(cookieJar) {
         /₹\s*[\d,]+\.\d{2}/,            // ₹1,234.56
         /[\d,]+\.\d{2}/,                // 1,234.56
         /"amount":\s*"?([\d,]+\.?\d*)"?/, // JSON format
-        /"value":\s*"?([\d,]+\.?\d*)"?/   // Alternative JSON
+        /"value":\s*"?([\d,]+\.?\d*)"?/,  // Alternative JSON
+        />\s*([\d,]+\.\d{2})\s*</,      // HTML wrapped numbers
+        /Total[:\s]*(Rs\s*)?[\d,]+\.\d{2}/i // Total: Rs 1,234.56
     ];
 
     for (const pattern of patterns) {
         const match = text.match(pattern);
         if (match) {
-            const amount = match[0].includes('Rs') || match[0].includes('₹') ? match[0] : `Rs ${match[0]}`;
+            let amount = match[0];
+            if (!amount.includes('Rs') && !amount.includes('₹')) {
+                // Extract just the number if it's wrapped in HTML or other format
+                const numberMatch = amount.match(/[\d,]+\.\d{2}/);
+                if (numberMatch) {
+                    amount = `Rs ${numberMatch[0]}`;
+                }
+            }
             console.log('💸 Extracted payout amount:', amount);
             return amount;
         }
     }
 
     console.log('❌ Could not extract payout amount from response');
-    console.log('📄 Full response for debugging:', text);
     return 'N/A';
 }
 
-// Enhanced message formatting (same as Java)
+// Enhanced message formatting
 function formatMessage(payinAmount, payoutAmount) {
     const now = new Date();
     const istTime = now.toLocaleString('en-IN', { 
@@ -254,7 +292,7 @@ function formatMessage(payinAmount, payoutAmount) {
 🕒 Updated at: ${istTime}`;
 }
 
-// Enhanced total volume calculation (same as Java)
+// Enhanced total volume calculation
 function calculateTotalVolume(payinAmount, payoutAmount) {
     try {
         const payin = extractNumericValue(payinAmount);
@@ -267,7 +305,7 @@ function calculateTotalVolume(payinAmount, payoutAmount) {
     }
 }
 
-// Enhanced numeric value extraction (same as Java)
+// Enhanced numeric value extraction
 function extractNumericValue(amount) {
     if (!amount || amount === 'N/A') {
         return 0.0;
@@ -283,7 +321,7 @@ function extractNumericValue(amount) {
     return isNaN(parsed) ? 0.0 : parsed;
 }
 
-// Enhanced Telegram function with better error handling
+// Enhanced Telegram function
 async function sendToTelegram(message) {
     console.log('📤 Sending message to Telegram');
     
@@ -298,8 +336,7 @@ async function sendToTelegram(message) {
             chat_id: TELEGRAM_CHAT_ID,
             text: message,
             parse_mode: 'Markdown'
-        }),
-        timeout: 10000
+        })
     });
 
     console.log('📤 Telegram API response status code:', response.status);
