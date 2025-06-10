@@ -1,0 +1,12 @@
+{
+  "name": "dashboard-monitor",
+  "version": "1.0.0",
+  "description": "Dashboard Monitor for Vercel",
+  "main": "api/monitor.js",
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
