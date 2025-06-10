@@ -1,4 +1,4 @@
-// Bulletproof Dashboard Monitor - Guaranteed Working Version
+// Bulletproof Dashboard Monitor - Fixed Amount Extraction
 import fetch from 'node-fetch';
 
 // Configuration
@@ -14,7 +14,7 @@ const PASSWORD = process.env.PASSWORD || 'Admin@onestop';
 const TIMEZONE = 'Asia/Kolkata';
 
 export default async function handler(req, res) {
-    console.log('🚀 Starting Dashboard Monitor - Bulletproof Version');
+    console.log('🚀 Starting Dashboard Monitor - Fixed Version');
     
     const istTime = new Date().toLocaleString('en-IN', { 
         timeZone: TIMEZONE,
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
         // Step 2: Get dashboard data using multiple methods
         const dashboardData = await getDashboardData(sessionCookies);
         
-        // Step 3: Extract amounts using all possible methods
+        // Step 3: Extract amounts using precise targeting
         const payinAmount = extractPayinAmount(dashboardData);
         const payoutAmount = extractPayoutAmount(dashboardData);
         
@@ -237,86 +237,48 @@ async function getDashboardData(cookieJar) {
         console.log('❌ Dashboard scraping failed:', error.message);
     }
     
-    // Method 4: Try alternative API endpoints
-    const alternativeEndpoints = [
-        'getDashboardSummary',
-        'getDashboardStats',
-        'getTransactionSummary',
-        'getDashboardData'
-    ];
-    
-    for (const endpoint of alternativeEndpoints) {
-        try {
-            console.log(`📊 Method 4: Trying ${endpoint}`);
-            const response = await fetch(`https://pay.onestopfashionhub.in/ssadmin/remote/${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    ...headers,
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: ''
-            });
-            
-            const text = await response.text();
-            if (text && !text.includes('Invalid Access') && text.length > 10) {
-                console.log(`✅ ${endpoint} Response:`, text);
-                results[endpoint] = text;
-            }
-        } catch (error) {
-            console.log(`❌ ${endpoint} failed:`, error.message);
-        }
-    }
-    
     return results;
 }
 
-// BULLETPROOF AMOUNT EXTRACTION - All possible patterns
+// FIXED: Precise payin amount extraction
 function extractPayinAmount(dashboardData) {
-    console.log('💰 Extracting payin amount using all methods');
+    console.log('💰 Extracting payin amount using precise targeting');
     
-    // All possible data sources
-    const dataSources = [
-        dashboardData.payinAPI,
-        dashboardData.dashboardHTML,
-        dashboardData.getDashboardSummary,
-        dashboardData.getDashboardStats,
-        dashboardData.getTransactionSummary,
-        dashboardData.getDashboardData
-    ];
-    
-    // All possible patterns
-    const patterns = [
-        // Standard currency formats
-        /Rs\s*[\d,]+\.\d{2}/gi,
-        /₹\s*[\d,]+\.\d{2}/gi,
-        /INR\s*[\d,]+\.\d{2}/gi,
+    // Target the payin API response specifically
+    const payinData = dashboardData.payinAPI;
+    if (payinData && typeof payinData === 'string') {
+        console.log('💰 Analyzing payin data for amount extraction');
         
-        // JSON formats
-        /"payin[^"]*":\s*"?([₹Rs\s]*[\d,]+\.?\d*)"?/gi,
-        /"amount[^"]*":\s*"?([₹Rs\s]*[\d,]+\.?\d*)"?/gi,
-        /"total[^"]*":\s*"?([₹Rs\s]*[\d,]+\.?\d*)"?/gi,
-        /"value[^"]*":\s*"?([₹Rs\s]*[\d,]+\.?\d*)"?/gi,
+        // Method 1: Look for "Total Payin Amount" column specifically
+        const totalPayinMatch = payinData.match(/Total Payin Amount.*?<td class="text-center">Rs\s*([\d,]+\.?\d*)<\/td>/is);
+        if (totalPayinMatch) {
+            const cleanAmount = cleanAndFormatAmount(totalPayinMatch[1]);
+            console.log('💰 Found payin amount (Method 1):', cleanAmount);
+            return cleanAmount;
+        }
         
-        // HTML patterns
-        /payin[^>]*>([₹Rs\s]*[\d,]+\.?\d*)</gi,
-        /total[^>]*>([₹Rs\s]*[\d,]+\.?\d*)</gi,
+        // Method 2: Look for the 4th Rs amount in the table (should be Total Payin Amount)
+        const allAmounts = payinData.match(/<td class="text-center">Rs\s*([\d,]+\.?\d*)<\/td>/g);
+        if (allAmounts && allAmounts.length >= 1) {
+            // The first Rs amount should be the Total Payin Amount
+            const amountMatch = allAmounts[0].match(/Rs\s*([\d,]+\.?\d*)/);
+            if (amountMatch) {
+                const cleanAmount = cleanAndFormatAmount(amountMatch[1]);
+                console.log('💰 Found payin amount (Method 2):', cleanAmount);
+                return cleanAmount;
+            }
+        }
         
-        // Number patterns
-        /[\d,]+\.\d{2}/g,
-        /[\d,]+/g
-    ];
-    
-    for (const data of dataSources) {
-        if (!data || typeof data !== 'string') continue;
-        
-        for (const pattern of patterns) {
-            const matches = [...data.matchAll(pattern)];
-            for (const match of matches) {
-                const amount = match[1] || match[0];
-                if (amount && amount.length > 0) {
-                    const cleanAmount = cleanAndFormatAmount(amount);
-                    if (cleanAmount !== 'N/A') {
-                        console.log('💰 Found payin amount:', cleanAmount);
+        // Method 3: Look for any large amount (> 1000) that's not a percentage
+        const largeAmounts = payinData.match(/Rs\s*([\d,]+\.?\d*)/g);
+        if (largeAmounts) {
+            for (const amount of largeAmounts) {
+                const numericMatch = amount.match(/Rs\s*([\d,]+\.?\d*)/);
+                if (numericMatch) {
+                    const numericValue = parseFloat(numericMatch[1].replace(/,/g, ''));
+                    if (numericValue > 1000) { // Should be a large transaction amount
+                        const cleanAmount = cleanAndFormatAmount(numericMatch[1]);
+                        console.log('💰 Found payin amount (Method 3):', cleanAmount);
                         return cleanAmount;
                     }
                 }
@@ -328,52 +290,45 @@ function extractPayinAmount(dashboardData) {
     return 'N/A';
 }
 
+// FIXED: Precise payout amount extraction
 function extractPayoutAmount(dashboardData) {
-    console.log('💸 Extracting payout amount using all methods');
+    console.log('💸 Extracting payout amount using precise targeting');
     
-    // All possible data sources
-    const dataSources = [
-        dashboardData.payoutAPI,
-        dashboardData.dashboardHTML,
-        dashboardData.getDashboardSummary,
-        dashboardData.getDashboardStats,
-        dashboardData.getTransactionSummary,
-        dashboardData.getDashboardData
-    ];
-    
-    // All possible patterns
-    const patterns = [
-        // Standard currency formats
-        /Rs\s*[\d,]+\.\d{2}/gi,
-        /₹\s*[\d,]+\.\d{2}/gi,
-        /INR\s*[\d,]+\.\d{2}/gi,
+    // Target the payout API response specifically
+    const payoutData = dashboardData.payoutAPI;
+    if (payoutData && typeof payoutData === 'string') {
+        console.log('💸 Analyzing payout data for amount extraction');
         
-        // JSON formats
-        /"payout[^"]*":\s*"?([₹Rs\s]*[\d,]+\.?\d*)"?/gi,
-        /"amount[^"]*":\s*"?([₹Rs\s]*[\d,]+\.?\d*)"?/gi,
-        /"total[^"]*":\s*"?([₹Rs\s]*[\d,]+\.?\d*)"?/gi,
-        /"value[^"]*":\s*"?([₹Rs\s]*[\d,]+\.?\d*)"?/gi,
+        // Method 1: Look for "Total Payout Amount" column specifically
+        const totalPayoutMatch = payoutData.match(/Total Payout Amount.*?<td class="text-center">Rs\s*([\d,]+\.?\d*)<\/td>/is);
+        if (totalPayoutMatch) {
+            const cleanAmount = cleanAndFormatAmount(totalPayoutMatch[1]);
+            console.log('💸 Found payout amount (Method 1):', cleanAmount);
+            return cleanAmount;
+        }
         
-        // HTML patterns
-        /payout[^>]*>([₹Rs\s]*[\d,]+\.?\d*)</gi,
-        /withdrawal[^>]*>([₹Rs\s]*[\d,]+\.?\d*)</gi,
+        // Method 2: Look for the 4th Rs amount in the table (should be Total Payout Amount)
+        const allAmounts = payoutData.match(/<td class="text-center">Rs\s*([\d,]+\.?\d*)<\/td>/g);
+        if (allAmounts && allAmounts.length >= 1) {
+            // The first Rs amount should be the Total Payout Amount
+            const amountMatch = allAmounts[0].match(/Rs\s*([\d,]+\.?\d*)/);
+            if (amountMatch) {
+                const cleanAmount = cleanAndFormatAmount(amountMatch[1]);
+                console.log('💸 Found payout amount (Method 2):', cleanAmount);
+                return cleanAmount;
+            }
+        }
         
-        // Number patterns
-        /[\d,]+\.\d{2}/g,
-        /[\d,]+/g
-    ];
-    
-    for (const data of dataSources) {
-        if (!data || typeof data !== 'string') continue;
-        
-        for (const pattern of patterns) {
-            const matches = [...data.matchAll(pattern)];
-            for (const match of matches) {
-                const amount = match[1] || match[0];
-                if (amount && amount.length > 0) {
-                    const cleanAmount = cleanAndFormatAmount(amount);
-                    if (cleanAmount !== 'N/A') {
-                        console.log('💸 Found payout amount:', cleanAmount);
+        // Method 3: Look for any large amount (> 1000) that's not a percentage
+        const largeAmounts = payoutData.match(/Rs\s*([\d,]+\.?\d*)/g);
+        if (largeAmounts) {
+            for (const amount of largeAmounts) {
+                 const numericMatch = amount.match(/Rs\s*([\d,]+\.?\d*)/);
+                if (numericMatch) {
+                    const numericValue = parseFloat(numericMatch[1].replace(/,/g, ''));
+                    if (numericValue > 1000) { // Should be a large transaction amount
+                        const cleanAmount = cleanAndFormatAmount(numericMatch[1]);
+                        console.log('💸 Found payout amount (Method 3):', cleanAmount);
                         return cleanAmount;
                     }
                 }
@@ -416,7 +371,7 @@ function cleanAndFormatAmount(amount) {
     const parsed = parseFloat(cleaned);
     
     // Validate the number
-    if (isNaN(parsed) || parsed <= 0 || parsed > 10000000) {
+    if (isNaN(parsed) || parsed <= 0 || parsed > 100000000) {
         return 'N/A';
     }
     
