@@ -1,3 +1,4 @@
+// Environment variables configured - ready to deploy
 import fetch from 'node-fetch';
 
 // Configuration
